@@ -199,3 +199,50 @@ def test_guarded_mcp_denies_secrets(tmp_path):
         return await tool.run({"path": "/home/u/.ssh/id_rsa"})
     result = asyncio.run(run_tool())
     assert "denied" in str(result)
+
+
+def test_load_policy_configurable_default(tmp_path):
+    from shesh_audit.policy import load_policy
+    p = tmp_path / "policy.json"
+    p.write_text('{"default_verdict": "deny", "protected_paths": false}')
+    pol = load_policy(p)
+    v, _ = pol.decide("some_unmatched_tool")
+    assert v.value == "deny"
+    # protected path no longer hard-denied -> falls through to default deny anyway
+    v2, _ = pol.decide("write_file", {"path": "/home/u/.ssh/config"})
+    assert v2.value == "deny"
+
+
+def test_load_policy_protected_paths_on(tmp_path):
+    from shesh_audit.policy import load_policy
+    p = tmp_path / "policy.json"
+    p.write_text('{"default_verdict": "allow", "protected_paths": true}')
+    pol = load_policy(p)
+    v, _ = pol.decide("write_file", {"path": "/home/u/.ssh/config"})
+    assert v.value == "deny"
+    v2, _ = pol.decide("something_else")
+    assert v2.value == "allow"
+
+
+def test_load_policy_missing_file_falls_back_to_defaults(tmp_path):
+    from shesh_audit.policy import Verdict, load_policy
+    pol = load_policy(tmp_path / "does-not-exist.json")
+    v, _ = pol.decide("totally_unknown_tool")
+    assert v == Verdict.CONFIRM
+
+
+def test_load_policy_corrupt_file_falls_back(tmp_path):
+    from shesh_audit.policy import Verdict, load_policy
+    p = tmp_path / "policy.json"
+    p.write_text("{not json!")
+    pol = load_policy(p)
+    v, _ = pol.decide("totally_unknown_tool")
+    assert v == Verdict.CONFIRM
+
+
+def test_save_policy_roundtrip(tmp_path):
+    from shesh_audit.policy import Verdict, load_policy, save_policy
+    p = save_policy("deny", False, path=tmp_path / "policy.json")
+    pol = load_policy(p)
+    v, _ = pol.decide("unmatched")
+    assert v == Verdict.DENY

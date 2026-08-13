@@ -4,12 +4,12 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from .log import AuditLog
-from .policy import Verdict, default_policy
+from .policy import Verdict, load_policy
 
 mcp = FastMCP("shesh-audit")
 
 _log: AuditLog | None = None
-_policy = default_policy()
+_policy = load_policy()
 
 
 def log() -> AuditLog:

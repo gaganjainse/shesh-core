@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 from .kernel_bridge import KernelBridge, KernelEventKind
 from .log import AuditLog
-from .policy import Policy, default_policy
+from .policy import Policy, load_policy
 
 
 @dataclass
@@ -39,7 +39,7 @@ class Guard:
 
     def __init__(self, policy: Policy | None = None, audit: AuditLog | None = None,
                  bridge: KernelBridge | None = None) -> None:
-        self.policy = policy or default_policy()
+        self.policy = policy or load_policy()
         self.audit = audit or AuditLog()
         self.bridge = bridge
 
