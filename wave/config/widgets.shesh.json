@@ -1,0 +1,34 @@
+{
+  "shesh-sysmon": {
+    "display:name": "Shesh SysMon",
+    "icon": "chart-line",
+    "blockdef": {
+      "meta": {
+        "view": "cpuplot"
+      }
+    },
+    "description": "Local CPU/system plot for the Shesh dashboard"
+  },
+  "shesh-files": {
+    "display:name": "Shesh Files",
+    "icon": "folder-open",
+    "blockdef": {
+      "meta": {
+        "view": "files",
+        "file:path": "$HOME/Downloads"
+      }
+    },
+    "description": "Downloads inbox — watched by shesh-files smart-organizer"
+  },
+  "shesh-tasks": {
+    "display:name": "Shesh Tasks",
+    "icon": "list-check",
+    "blockdef": {
+      "meta": {
+        "view": "web",
+        "web:url": "https://github.com/gaganjainse/shesh-ecosystem/issues?q=label%3Aswarm%3Apending"
+      }
+    },
+    "description": "Live swarm queue (swarm:pending issues)"
+  }
+}

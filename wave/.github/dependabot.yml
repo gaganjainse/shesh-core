@@ -1,0 +1,12 @@
+version: 2
+# Keeps the 2026-08-13 SHA pins moving: pinned-but-stale is the failure mode
+# this file exists to prevent. Weekly, grouped, rebased automatically.
+# Ecosystems declared here are ONLY those with real manifests in this repo —
+# a pip entry without a manifest makes every update run fail ("No files
+# found"), the exact noise this postmortem-fixed config eliminates.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: { interval: "weekly" }
+    groups:
+      actions: { patterns: ["*"] }
