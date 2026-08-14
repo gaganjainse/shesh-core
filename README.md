@@ -6,7 +6,7 @@ widgets/config.
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
 ![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue)
-![Tests](https://img.shields.io/badge/Tests-175-success)
+![Tests](https://img.shields.io/badge/Tests-180-success)
 ![CI](https://github.com/gaganjainse/shesh-core/actions/workflows/ci.yml/badge.svg)
 
 - **License:** GPL-3.0-or-later
@@ -28,7 +28,7 @@ imports that always resolve.
 
 ```bash
 uv pip install -e .            # installs all 16 packages + 15 console scripts
-pytest -q                      # 175 tests
+pytest -q                      # 180 tests
 ruff check src/ tests/         # lint gate
 ```
 
