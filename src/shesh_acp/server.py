@@ -183,6 +183,9 @@ class ACPServer:
             return {"ok": False, "needs_confirmation": True,
                     "reason": "command is potentially destructive"}
         try:
+            # nosec B602 - shell=True is the point of a terminal tool; the
+            # command is gated by the dangerous-token denylist above AND the
+            # confirm-by-default policy (shesh-audit) before this executes.
             p = subprocess.run(
                 cmd, shell=True, cwd=sess.cwd, capture_output=True,
                 text=True, timeout=params.get("timeout", 30))

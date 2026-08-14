@@ -132,7 +132,7 @@ def _llm(p: pathlib.Path, mime: str | None) -> dict | None:
             OLLAMA_URL, data=payload,
             headers=headers,
         )
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=10) as r:  # nosec B310 - http(s) scheme, config-driven URL
             data = json.loads(json.loads(r.read()).get("response", "{}"))
         dest = str(HOME / data["dest"])
         return {"src": str(p), "dest": dest, "method": "llm",

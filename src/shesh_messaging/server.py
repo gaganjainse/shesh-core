@@ -69,7 +69,7 @@ def _telegram_api(token: str, method: str, payload: dict, timeout: int = 10) -> 
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - http(s) scheme, config-driven URL
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
         # with-statement: an HTTPError is a live socket — close it even if the

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pathlib
 import shutil
 import subprocess
+import tempfile
 import time
 
 from shesh_audit.mcp_guard import GuardedMCP as FastMCP
@@ -53,12 +54,14 @@ def screenshot(copy: bool = True, region: bool = False, path: str | None = None)
 
 
 @mcp.tool()
-def take_screenshot(path: str = "/tmp/shesh_screenshot.png", region: str | None = None) -> dict:
+def take_screenshot(path: str | None = None, region: str | None = None) -> dict:
     """Compat alias of screenshot(): explicit path, region as slurp geometry string.
 
     Strict semantics (same as the new API): hard failure when grim is absent —
     no fabricated success stubs.
     """
+    if path is None:
+        path = str(pathlib.Path(tempfile.gettempdir()) / "shesh_screenshot.png")
     if not shutil.which("grim"):
         return {"ok": False, "error": "grim not installed"}
     cmd = ["grim"]

@@ -65,7 +65,7 @@ def search_notes(query: str, vault: str | None = None) -> list[dict]:
 def duckduckgo_search(query: str, limit: int = 5) -> list[dict]:
     """Search the web using DuckDuckGo's instant HTML endpoint (no API key)."""
     url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": query})
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Shesh"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Shesh"})  # nosec B310 - https scheme, hardcoded
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             html = r.read().decode("utf-8", "ignore")
@@ -87,7 +87,14 @@ def duckduckgo_search(query: str, limit: int = 5) -> list[dict]:
 
 
 def fetch_url(url: str, max_bytes: int = 200_000) -> dict:
-    """Fetch a URL and return text (HTML stripped to rough text)."""
+    """Fetch a URL and return text (HTML stripped to rough text).
+
+    Only http/https are permitted — this blocks SSRF-style schemes like
+    file://, gopher:// and internal-network protocols (bandit B310).
+    """
+    scheme = urllib.parse.urlparse(url).scheme
+    if scheme not in ("http", "https"):
+        return {"error": f"scheme {scheme!r} not allowed (http/https only)"}
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Shesh"})
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
