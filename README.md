@@ -117,6 +117,10 @@ and the compiled reading compilation: [shesh-docs](https://github.com/gaganjains
 
 GPL-3.0-or-later — see [LICENSE](LICENSE).
 
+
+> **Reproducible install:** `uv.lock` pins the full dependency tree. Install with
+> `uv sync --frozen` (or `uv pip install -r <(uv export --frozen)`) for a locked build.
+
 ## Status
 
 CI green. Security: [SECURITY.md](SECURITY.md). Compiled reading:
