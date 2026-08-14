@@ -21,6 +21,7 @@ import urllib.request
 
 HOME = pathlib.Path(os.path.expanduser("~"))
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")
 LLM_MODEL = os.environ.get("SHESH_CLASSIFIER_MODEL", "phi4-mini")
 # Set SHESH_NO_LLM=1 to disable LLM calls (fully offline/deterministic).
 NO_LLM = os.environ.get("SHESH_NO_LLM") == "1"
@@ -124,9 +125,12 @@ def _llm(p: pathlib.Path, mime: str | None) -> dict | None:
         "model": LLM_MODEL, "prompt": prompt, "stream": False, "format": "json",
     }).encode()
     try:
+        headers = {"Content-Type": "application/json"}
+        if OLLAMA_API_KEY:
+            headers["X-API-Key"] = OLLAMA_API_KEY
         req = urllib.request.Request(
             OLLAMA_URL, data=payload,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         with urllib.request.urlopen(req, timeout=10) as r:
             data = json.loads(json.loads(r.read()).get("response", "{}"))
