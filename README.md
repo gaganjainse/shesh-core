@@ -104,8 +104,9 @@ Governance page).
 Kept separate (real, independently versioned services): `shesh-memory`,
 `shesh-orchestrator`, `shesh-harness`, `shesh-phone`, `shesh-omniroute` — they
 depend on `shesh-core>=0.1`. See the ecosystem manifest
-(`manifests/components.toml`) and
-[`docs/architecture/REPO_TOPOLOGY.md`](https://github.com/gaganjainse/shesh-ecosystem/blob/main/docs/architecture/REPO_TOPOLOGY.md).
+(`manifests/components.toml`),
+[`docs/architecture/REPO_TOPOLOGY.md`](https://github.com/gaganjainse/shesh-ecosystem/blob/main/docs/architecture/REPO_TOPOLOGY.md),
+and the compiled reading compilation: [shesh-docs](https://github.com/gaganjainse/shesh-docs).
 
 ## License
 
