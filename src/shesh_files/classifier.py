@@ -9,7 +9,6 @@ License: GPL-3.0   See docs/SHESH/05_SMART_ORGANIZER_V2.md
 """
 from __future__ import annotations
 
-import contextlib
 import json
 import mimetypes
 import os
@@ -110,9 +109,10 @@ def decide(path: str) -> dict:
 
 
 def _llm(p: pathlib.Path, mime: str | None) -> dict | None:
-    size_mb = 0.0
-    with contextlib.suppress(OSError):
+    try:
         size_mb = p.stat().st_size / 1_000_000
+    except OSError:
+        size_mb = 0.0
     prompt = (
         "Classify this file into ONE destination folder relative to home. "
         "Choose from: Documents/Reference, Documents/Personal/Finance, "
