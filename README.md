@@ -4,10 +4,10 @@
 servers and tools that used to live in 16 separate repos, plus the Wave terminal
 widgets/config.
 
-![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python)
-![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=for-the-badge)
-![Tests](https://img.shields.io/badge/Tests-175-success?style=for-the-badge)
-![CI](https://img.shields.io/github/actions/workflow/status/gaganjainse/shesh-core/ci.yml?style=for-the-badge&label=CI)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
+![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue)
+![Tests](https://img.shields.io/badge/Tests-175-success)
+![CI](https://github.com/gaganjainse/shesh-core/actions/workflows/ci.yml/badge.svg)
 
 - **License:** GPL-3.0-or-later
 - **Owner:** Gagan Jain ([@gaganjainse](https://github.com/gaganjainse))
