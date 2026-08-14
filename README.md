@@ -9,6 +9,11 @@ widgets/config.
 ![Tests](https://img.shields.io/badge/Tests-175-success?style=for-the-badge)
 ![CI](https://github.com/gaganjainse/shesh-core/actions/workflows/ci.yml/badge.svg)
 
+- **License:** GPL-3.0-or-later
+- **Owner:** Gagan Jain ([@gaganjainse](https://github.com/gaganjainse))
+- **Layer:** Brain + Soma (16 folded packages) · **Part of:** [shesh-ecosystem](https://github.com/gaganjainse/shesh-ecosystem)
+
+
 ## Why one repo
 
 Consolidation rationale (2026-08-13 fleet audit, ADR-0019): federation is right
@@ -111,3 +116,8 @@ and the compiled reading compilation: [shesh-docs](https://github.com/gaganjains
 ## License
 
 GPL-3.0-or-later — see [LICENSE](LICENSE).
+
+## Status
+
+CI green. Security: [SECURITY.md](SECURITY.md). Compiled reading:
+[shesh-docs](https://github.com/gaganjainse/shesh-docs).
