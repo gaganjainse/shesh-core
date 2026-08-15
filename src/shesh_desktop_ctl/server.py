@@ -13,6 +13,8 @@ from shesh_audit.mcp_guard import GuardedMCP as _MCP
 
 from . import automation as auto
 from . import devices as d
+from . import display as disp
+from . import documents as docs
 
 mcp = _MCP("shesh-desktop-ctl")
 
@@ -158,6 +160,38 @@ def notify(summary: str, body: str = "", urgency: str = "normal") -> dict:
     return d.notify(summary, body, urgency)
 
 
+# ── Display and monitors ────────────────────────────────────────────────────
+
+@mcp.tool()
+def list_monitors() -> dict:
+    """List monitors with their resolution, refresh rate, scale, and modes."""
+    return disp.list_monitors()
+
+
+@mcp.tool()
+def set_monitor_mode(name: str, width: int, height: int,
+                     refresh: float | None = None, confirm: bool = False) -> dict:
+    """Change resolution and refresh rate.
+
+    Checked against the modes the monitor advertises, and the previous mode is
+    returned so it can be restored. Requires confirm=True: an unsupported mode
+    can leave the screen unreadable.
+    """
+    return disp.set_mode(name, width, height, refresh, confirm)
+
+
+@mcp.tool()
+def set_monitor_scale(name: str, scale: float, confirm: bool = False) -> dict:
+    """Set fractional scaling between 0.5 and 3.0. Requires confirm=True."""
+    return disp.set_scale(name, scale, confirm)
+
+
+@mcp.tool()
+def set_monitor_enabled(name: str, on: bool, confirm: bool = False) -> dict:
+    """Enable or disable an output. Disabling the only active output is refused."""
+    return disp.set_enabled(name, on, confirm)
+
+
 # ── Desktop automation (adopted upstream, ADR-0020) ─────────────────────────
 
 @mcp.tool()
@@ -176,6 +210,37 @@ def automation_call(tool: str, arguments: dict | None = None,
     anything the operator can, and a misread instruction is not recoverable.
     """
     return auto.call(tool, arguments, confirm=confirm)
+
+
+# ── Documents (sandboxed) ───────────────────────────────────────────────────
+
+@mcp.tool()
+def document_to_markdown(path: str) -> dict:
+    """Convert a document to Markdown inside a network-isolated container.
+
+    Document parsers are a large attack surface, so nothing is parsed in this
+    process. The file is bound read-only into a throwaway container.
+    """
+    return docs.to_markdown(path)
+
+
+@mcp.tool()
+def document_extract_text(path: str) -> dict:
+    """Extract plain text from a document, for search or summarising."""
+    return docs.extract_text(path)
+
+
+@mcp.tool()
+def document_inspect(path: str) -> dict:
+    """Report page count, title, and encryption without parsing in-process."""
+    return docs.inspect(path)
+
+
+@mcp.tool()
+def document_convert(path: str, to: str, out: str | None = None,
+                     confirm: bool = False) -> dict:
+    """Convert a document to another format. Requires confirm=True to write."""
+    return docs.convert(path, to, out, confirm)
 
 
 def main() -> None:
