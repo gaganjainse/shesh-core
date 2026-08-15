@@ -1,7 +1,7 @@
 # Shesh × Wave Terminal — integration strategy
 
 Status: **adopted policy** (2026-08-12). Supersedes the abandoned Rust re-implementation
-in `shesha-kernel` (the `shesh-waveobj` / `-wps` / `-blockctl` crates, a 1:1 mirror of
+in `shesh-kernel` (the `shesh-waveobj` / `-wps` / `-blockctl` crates, a 1:1 mirror of
 Wave's Go packages — see the ecosystem ADR-0018 for the adopt-vs-build judgment).
 
 ## 1. What Wave already gives us (verified against the fork, release lineage v0.11+)
