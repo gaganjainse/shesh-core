@@ -6,7 +6,7 @@ Wrapper for forked [`gaganjainse/waveterm`](https://github.com/gaganjainse/wavet
 > **Policy: integrate, never rewrite.** Wave = Electron/React 19 + Monaco + xterm-webgl frontend
 > (~60k LOC TS) and a Go backend (~75k LOC: `pkg/waveobj`, `pkg/wps`, `pkg/wconfig`,
 > `pkg/blockcontroller`, `pkg/wshrpc`, `pkg/remote`, `pkg/secretstore`, …).
-> A Rust reimplementation was attempted in `shesha-kernel` (the `shesh-waveobj/-wps/-blockctl/…`
+> A Rust reimplementation was attempted in `shesh-kernel` (the `shesh-waveobj/-wps/-blockctl/…`
 > crates literally mirror Wave's Go packages 1:1) and is **formally abandoned** — see judgment in
 > shesh-ecosystem ADR. This repo is where Shesh meets stock Wave through *documented* surfaces only.
 

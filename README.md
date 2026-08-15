@@ -1,4 +1,4 @@
-# 🧩 shesh-core
+# shesh-core
 
 **Shesh Brain/Soma core** — the consolidated home of the 16 small `shesh-*` MCP
 servers and tools that used to live in 16 separate repos, plus the Wave terminal
@@ -6,29 +6,27 @@ widgets/config.
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
 ![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue)
-![Tests](https://img.shields.io/badge/Tests-180-success)
 ![CI](https://github.com/gaganjainse/shesh-core/actions/workflows/ci.yml/badge.svg)
 
 - **License:** GPL-3.0-or-later
 - **Owner:** Gagan Jain ([@gaganjainse](https://github.com/gaganjainse))
 - **Layer:** Brain + Soma (16 folded packages) · **Part of:** [shesh-ecosystem](https://github.com/gaganjainse/shesh-ecosystem)
 
-
 ## Why one repo
 
 Consolidation rationale (2026-08-13 fleet audit, ADR-0019): federation is right
 for independently versioned services, but a 150-line module is not a service —
-it's a file. Sixteen repos each re-carried their own `pyproject.toml` / CI /
+it is a file. Sixteen repos each re-carried their own `pyproject.toml` / CI /
 SECURITY.md / dependabot with subtle drift (different ruff configs, a missing
-console script, cross-repo deps that couldn't resolve from PyPI). One repo fixes
+console script, cross-repo deps that could not resolve from PyPI). One repo fixes
 all of that: **one pyproject, one ruff config, one CI, one license**, and relative
 imports that always resolve.
 
 ## Quick start
 
 ```bash
-uv pip install -e .            # installs all 16 packages + 15 console scripts
-pytest -q                      # 180 tests
+uv pip install -e .            # install all packages and console scripts
+pytest -q
 ruff check src/ tests/         # lint gate
 ```
 
@@ -39,17 +37,17 @@ ruff check src/ tests/         # lint gate
 title: shesh-core — package layers
 ---
 graph TB
-    subgraph brain["🧠 Brain"]
+    subgraph brain[" Brain"]
         A["shesh_audit<br/>policy + event log"]
         S["shesh_secrets"]
         B["shesh_brain"]
         AC["shesh_acp<br/>Agent Client Protocol"]
     end
-    subgraph mind["🧠 Mind"]
+    subgraph mind[" Mind"]
         M["shesh_mind<br/>routing"]
         SK["shesh_skills"]
     end
-    subgraph soma["💪 Soma"]
+    subgraph soma[" Soma"]
         SH["shesh_shell"]:::s
         SY["shesh_system"]:::s
         FI["shesh_files"]:::s
@@ -61,7 +59,7 @@ graph TB
         EB["shesh_ebpf"]:::s
         MB["shesh_mcp_bundle"]:::s
     end
-    subgraph desktop["🖥️ Desktop"]
+    subgraph desktop[" Desktop"]
         W["wave/<br/>widgets + theme"]
     end
     SH --> A
@@ -116,7 +114,6 @@ and the compiled reading compilation: [shesh-docs](https://github.com/gaganjains
 ## License
 
 GPL-3.0-or-later — see [LICENSE](LICENSE).
-
 
 > **Reproducible install:** `uv.lock` pins the full dependency tree. Install with
 > `uv sync --frozen` (or `uv pip install -r <(uv export --frozen)`) for a locked build.

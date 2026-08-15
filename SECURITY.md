@@ -1,23 +1,8 @@
 # Security Policy
 
-## Reporting a Vulnerability
+The canonical security posture for the Shesh fleet — vulnerability reporting,
+supported versions, threat model, and recovery runbooks — is maintained in the
+[ecosystem security policy](https://github.com/gaganjainse/shesh-ecosystem/blob/main/SECURITY.md).
 
-If you find a security vulnerability in this project, please report it
-**privately** to `gagan.jain.se@gmail.com`. Do not open a public issue.
-
-Please include:
-
-- the affected repository and version/commit,
-- steps to reproduce,
-- a description of the potential impact.
-
-## Response
-
-I treat security reports as high priority and aim to acknowledge within
-48 hours and ship a fix for confirmed vulnerabilities promptly.
-
-## Scope
-
-This policy covers the code and deployment configuration in this repository.
-Dependency vulnerabilities are tracked via Dependabot alerts and fixed on a
-rolling basis.
+Report vulnerabilities through the process documented there. This repository
+follows the fleet-wide policy and carries no local exceptions.

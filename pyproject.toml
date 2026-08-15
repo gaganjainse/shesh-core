@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "shesh-core"
 version = "0.1.0"
-description = "Shesh Brain/Soma core — consolidated MCP servers + tools: governance audit, secrets, brain, mind, shell, system, files, media, messaging, calendar, backup, containers, eBPF, skills, MCP bundle, ACP, wave"
+description = "Shesh Core: consolidated Brain and Soma tool servers over the Model Context Protocol"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-or-later" }
@@ -14,7 +14,7 @@ dependencies = ["fastmcp>=3.4.7,<4"]
 
 [project.optional-dependencies]
 llm = ["httpx>=0.27"]   # shesh-files classifier LLM support
-dev = ["pytest>=9.1", "pytest-asyncio>=0.24", "ruff>=0.16"]
+dev = ["pytest>=9.1,<10", "pytest-asyncio>=0.24,<2", "ruff>=0.16,<1"]
 
 [project.scripts]
 shesh-audit-mcp = "shesh_audit.server:main"
@@ -32,6 +32,7 @@ shesh-ebpf-mcp = "shesh_ebpf.server:main"
 shesh-skills-mcp = "shesh_skills.server:main"
 shesh-mcp-bundle-mcp = "shesh_mcp_bundle.server:main"
 shesh-acp = "shesh_acp.__main__:main"
+shesh-desktop-ctl-mcp = "shesh_desktop_ctl.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -54,6 +55,7 @@ ignore = ["E402"]  # module imports after sys.path setup in tests
 "tests/*" = ["F401", "E402", "E501"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
