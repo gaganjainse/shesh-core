@@ -16,7 +16,7 @@ widgets/config.
 
 Consolidation rationale (2026-08-13 fleet audit, ADR-0019): federation is right
 for independently versioned services, but a 150-line module is not a service —
-it is a file. Sixteen repos each re-carried their own `pyproject.toml` / CI /
+it is a file. The folded repositories each re-carried their own `pyproject.toml` / CI /
 SECURITY.md / dependabot with subtle drift (different ruff configs, a missing
 console script, cross-repo deps that could not resolve from PyPI). One repo fixes
 all of that: **one pyproject, one ruff config, one CI, one license**, and relative
@@ -45,7 +45,6 @@ graph TB
     end
     subgraph mind[" Mind"]
         M["shesh_mind<br/>routing"]
-        SK["shesh_skills"]
     end
     subgraph soma[" Soma"]
         SH["shesh_shell"]:::s
@@ -79,7 +78,6 @@ graph TB
 | `shesh_brain` | Brain | `shesh-brain-mcp` |
 | `shesh_acp` | Brain | `shesh-acp` (Agent Client Protocol) |
 | `shesh_mind` | Mind | `shesh-mind-mcp` |
-| `shesh_skills` | Mind | `shesh-skills-mcp` |
 | `shesh_shell` | Soma | `shesh-shell-mcp` |
 | `shesh_system` | Soma | `shesh-system-mcp` |
 | `shesh_files` | Soma | — (library + classifier CLI) |
