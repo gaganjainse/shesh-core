@@ -246,3 +246,41 @@ def test_save_policy_roundtrip(tmp_path):
     pol = load_policy(p)
     v, _ = pol.decide("unmatched")
     assert v == Verdict.DENY
+
+
+def test_protected_paths_deny_beats_read_allow():
+    """F-01: first-match ordering — a read tool touching a protected path must
+    be DENIED, not ALLOWed by the get_*/list_* rule."""
+    p = default_policy()
+    for tool in ("get_file", "list_files", "search_notes", "recall"):
+        for path in (
+            "/home/u/.ssh/id_rsa",
+            "/home/u/.gnupg/private.key",
+            "/home/u/Documents/Job/salary.xlsx",
+            "/home/u/Vaults/master.md",
+        ):
+            v, _ = p.decide(tool, {"path": path})
+            assert v == Verdict.DENY, f"{tool}({path}) must be DENY"
+
+
+def test_protected_path_via_any_key_and_symlink():
+    """F-01 residual: path under an unexpected key, and symlinked paths, still
+    hit the DENY rules via canonicalization."""
+    p = default_policy()
+    # path under a non-'path' key
+    v, _ = p.decide("get_file", {"file_path": "/home/u/.ssh/id_rsa"})
+    assert v == Verdict.DENY
+    # a symlink into a protected dir is canonicalized before matching
+    import os
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        secret = os.path.join(td, "real", ".ssh", "id_rsa")
+        os.makedirs(os.path.dirname(secret), exist_ok=True)
+        open(secret, "w").close()
+        # build a path that contains a symlink component pointing at the protected dir
+        link = os.path.join(td, "link_to_ssh")
+        os.symlink(os.path.join(td, "real", ".ssh"), link)
+        target = os.path.join(link, "id_rsa")
+        v, _ = p.decide("get_file", {"path": target})
+        assert v == Verdict.DENY
+
