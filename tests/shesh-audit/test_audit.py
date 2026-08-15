@@ -56,6 +56,13 @@ def test_default_policy_denies_protected_paths():
     assert v == Verdict.DENY
 
 
+def test_default_policy_denies_protected_path_reads():
+    p = default_policy()
+    for tool in ("get_file", "list_files", "search_notes"):
+        v, _ = p.decide(tool, {"path": "/home/u/.ssh/id_rsa"})
+        assert v == Verdict.DENY
+
+
 def test_default_policy_confirms_unknown():
     p = default_policy()
     v, _ = p.decide("something_weird", {})
@@ -199,6 +206,30 @@ def test_guarded_mcp_denies_secrets(tmp_path):
         return await tool.run({"path": "/home/u/.ssh/id_rsa"})
     result = asyncio.run(run_tool())
     assert "denied" in str(result)
+
+
+def test_guarded_mcp_does_not_execute_confirmation(tmp_path):
+    import asyncio
+
+    from shesh_audit.gate import Guard
+    from shesh_audit.log import AuditLog
+    from shesh_audit.mcp_guard import GuardedMCP
+    called = False
+    mcp = GuardedMCP("test", guard=Guard(audit=AuditLog(root=tmp_path)))
+
+    @mcp.tool()
+    def write_thing() -> dict:
+        nonlocal called
+        called = True
+        return {"ok": True}
+
+    async def run_tool():
+        tool = await mcp.get_tool("write_thing")
+        return await tool.run({})
+
+    result = asyncio.run(run_tool())
+    assert "confirmation required" in str(result)
+    assert called is False
 
 
 def test_load_policy_configurable_default(tmp_path):

@@ -38,9 +38,9 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from fastmcp.tools.tool import ToolResult
 
-from .gate import Guard
-from .policy import Verdict
-from .tool_pins import verify_tool
+from shesh_audit.gate import Guard
+from shesh_audit.policy import Verdict
+from shesh_audit.tool_pins import verify_tool
 
 GUARDED_MARK = "_shesh_guarded"
 
@@ -138,10 +138,14 @@ class GuardedMCP(FastMCP):
 
                 if decision.verdict == Verdict.DENY.value:
                     return {"ok": False, "error": f"denied: {decision.reason}"}
-
-                # In a headless/agent context, "confirm" is treated as allowed
-                # but flagged; the ACP layer surfaces the confirmation to a human
-                # when running inside an editor. Pure read tools can opt out.
+                if decision.verdict == Verdict.CONFIRM.value:
+                    # A confirmation is never authorization. Hosts without an
+                    # approval channel receive a non-executing result.
+                    return {
+                        "ok": False,
+                        "needs_confirmation": True,
+                        "error": f"confirmation required: {decision.reason}",
+                    }
                 try:
                     result = fn(*args, **kwargs)
                 except Exception as e:  # noqa: BLE001
@@ -164,3 +168,26 @@ class GuardedMCP(FastMCP):
             return super(GuardedMCP, self).tool(*tool_args, **tool_kwargs)(wrapper)
 
         return decorator
+
+# Capability levels for tool maturity classification
+CAPABILITY_CHOICES = ("supported", "experimental", "stub")
+
+def tool_fingerprint(name: str, description: str, signature: str,
+                     capability: str = "supported") -> str:
+    """Return SHA-256 fingerprint of tool definition including capability level.
+    
+    Args:
+        name: Tool name
+        description: Tool description
+        signature: Tool function signature
+        capability: One of CAPABILITY_CHOICES: supported, experimental, stub
+    
+    Returns:
+        SHA-256 hex digest of the tool fingerprint
+    """
+    if capability not in CAPABILITY_CHOICES:
+        raise ValueError(f"Invalid capability: {{capability}}; must be one of {{CAPABILITY_CHOICES}}")
+    import json
+    blob = json.dumps({{"name": name, "description": description, "signature": signature,
+                       "capability": capability}}, sort_keys=True)
+    return hashlib.sha256(blob).hexdigest()

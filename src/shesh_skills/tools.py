@@ -92,22 +92,43 @@ def fetch_url(url: str, max_bytes: int = 200_000) -> dict:
     Only http/https are permitted — this blocks SSRF-style schemes like
     file://, gopher:// and internal-network protocols (bandit B310).
     """
+    import urllib.parse
+    import urllib.request
+    import re
+    import ipaddress
+
     scheme = urllib.parse.urlparse(url).scheme
     if scheme not in ("http", "https"):
         return {"error": f"scheme {scheme!r} not allowed (http/https only)"}
+
+    # Additional SSRF hardening: block loopback/private/resolved addresses
+    try:
+        hostname = urllib.parse.urlparse(url).hostname
+        if hostname:
+            try:
+                addr = ipaddress.ip_address(hostname)
+                if addr.is_loopback or addr.is_reserved or addr.is_private or addr.is_link_local or addr.is_multicast:
+                    return {"error": f"scheme {scheme!r} not allowed: host {hostname!r} is not reachable from this environment"}
+            except ValueError:
+                # Not a numeric IP; check for literal localhost
+                if hostname.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+                    return {"error": f"scheme {scheme!r} not allowed: localhost is not reachable"}
+    except Exception:
+        pass
+
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Shesh"})
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             data = r.read(max_bytes).decode("utf-8", "ignore")
     except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
-    text = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", data)
+    text = re.sub(r"(?is)<(script|style).*?>.*?</>", " ", data)
     text = re.sub(r"(?s)<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return {"url": url, "bytes": len(data), "text": text[:8000]}
 
 
-# ── Coding ──────────────────────────────────────────────────────────────────
+
 def git_status(path: str = ".") -> str:
     return run(["git", "-C", path, "status", "--short", "--branch"]).text
 

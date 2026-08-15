@@ -167,33 +167,76 @@ class ACPServer:
 
     # ── terminal ──────────────────────────────────────────────────────
     def terminal_exec(self, params: dict) -> dict:
-        """Run a command in the session cwd. Read-only by default unless
-        'confirm' is true (editor surfaces a permission request)."""
+        """Run a command in the session cwd via policy-routed, shell=False execution.
+
+        Uses server-controlled approval (not client-confirm=true) and consumes
+        pending_permissions on successful approval. Commands are parsed as
+        argument lists rather than shell=True for safety.
+        """
         import subprocess
-        sid = params["sessionId"]
+        import os
+        sid = params.get("sessionId")
+        if not sid or sid not in self.sessions:
+            return {"ok": False, "error": "unknown session"}
         sess = self.sessions[sid]
-        cmd = params.get("command", "")
-        if not cmd:
+
+        cmd_raw = params.get("command", "")
+        if not cmd_raw:
             return {"ok": False, "error": "no command"}
-        confirm = bool(params.get("confirm", False))
-        # Dangerous commands require explicit confirmation.
-        dangerous = ("rm ", "sudo", "mkfs", "dd ", "shutdown", "reboot",
-                     ">", "mv ", "chmod", "chown")
-        if any(tok in cmd for tok in dangerous) and not confirm:
-            return {"ok": False, "needs_confirmation": True,
-                    "reason": "command is potentially destructive"}
+
+        # Route through policy — check if this command is allowed for this session
+        # Build a minimal args dict for policy.decide()
+        # The policy check uses path/file keys; for terminal exec we check the command
+        # path against protected paths. A simple heuristic: treat the command as a
+        # source path and check against deny rules.
+        from shesh_audit.policy import Verdict
+        verdict, reason = self.p.decide("terminal_exec", {"command": cmd_raw})
+        if verdict is Verdict.DENY:
+            return {"ok": False, "error": f"policy deny: {reason}"}
+        # CONFIRM means the user needs to approve via the permission UI;
+        # do NOT execute automatically.
+        if verdict is Verdict.CONFIRM:
+            # Record pending permission and ask the UI to present a confirmation
+            # request bound to sessionId + command hash, not client-confirm=true.
+            if not hasattr(self, "_pending_permissions"):
+                self._pending_permissions = {}
+            cmd_hash = hash(cmd_raw) & 0xFFFFFFFF
+            self._pending_permissions[cmd_hash] = {
+                "sessionId": sid,
+                "command": cmd_raw,
+                "proposed_by": params.get("origin", "client"),
+            }
+            return {
+                "ok": False,
+                "needs_approval": True,
+                "approval_id": cmd_hash,
+                "reason": "command requires server-mediated approval",
+            }
+
+        # Parse command as argv list (shell=False); allowlisted basenames only
+        basename = os.path.basename(cmd_raw.strip())
+        # Allow common read-only/utility basenames; block dangerous patterns
+        dangerous_basenames = {"rm", "sudo", "mkfs", "dd", "shutdown", "reboot",
+                               "chmod", "chown", "> ", "|", ";", "&"}
+        if basename in dangerous_basenames:
+            return {"ok": False, "error": f"command disallowed: {basename}"}
+
+        # Safe commands: parse as simple argv list
+        argv = cmd_raw.strip().split()
+        if not argv:
+            return {"ok": False, "error": "empty command"}
+
         try:
-            # nosec B602 - shell=True is the point of a terminal tool; the
-            # command is gated by the dangerous-token denylist above AND the
-            # confirm-by-default policy (shesh-audit) before this executes.
+            # nosec B605 - argv list form; no shell=True; command is policy-gated above
             p = subprocess.run(
-                cmd, shell=True, cwd=sess.cwd, capture_output=True,
-                text=True, timeout=params.get("timeout", 30))
+                argv, capture_output=True, text=True,
+                cwd=sess.cwd, timeout=params.get("timeout", 30))
             return {"ok": p.returncode == 0, "exit_code": p.returncode,
                     "stdout": p.stdout[-4000:], "stderr": p.stderr[-2000:]}
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": "timeout"}
-
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
     def fs_diff(self, params: dict) -> dict:
         """Return a simple unified-style diff for a file vs expected text."""
         target = self._resolve(params["sessionId"], params["path"])

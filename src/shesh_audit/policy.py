@@ -43,8 +43,20 @@ class Policy:
             if not fnmatch.fnmatch(tool, r.tool):
                 continue
             if r.path_glob is not None:
-                target = str(args.get("path") or args.get("file") or "")
-                if not fnmatch.fnmatch(target, r.path_glob):
+                # Collect candidate paths from multiple possible arg keys
+                raw_paths: list[str] = []
+                for key in ("path", "file", "file_path", "source", "target", "dir", "directory"):
+                    if key in args:
+                        raw_paths.append(str(args[key]))
+                # Canonicalize each path gracefully (os.path.realpath if the path exists)
+                candidates: list[str] = []
+                for p in raw_paths:
+                    try:
+                        candidates.append(os.path.realpath(p) if os.path.exists(p) else p)
+                    except Exception:
+                        candidates.append(p)
+                # Check if any candidate matches the glob
+                if not any(fnmatch.fnmatch(c, r.path_glob) for c in candidates):
                     continue
             return r.verdict, r.reason
         return Verdict.CONFIRM, "unknown action; default confirm"
@@ -53,18 +65,20 @@ class Policy:
 def default_policy() -> Policy:
     """The default safe policy for a personal laptop."""
     return Policy(rules=[
+        # Protected paths must precede broad read-only rules. Policy uses
+        # first-match semantics, so placing these after get_* would allow
+        # confidential reads despite the intended hard deny.
+        Rule(Verdict.DENY, "*", path_glob="*/Documents/Job/*", reason="job data off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/Projects/job/*", reason="job data off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/.ssh/*", reason="secrets off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/.gnupg/*", reason="secrets off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/Vaults/*", reason="vault off-limits"),
         # Read-only / informational: allow silently
         Rule(Verdict.ALLOW, "get_*", reason="read-only"),
         Rule(Verdict.ALLOW, "list_*", reason="read-only"),
         Rule(Verdict.ALLOW, "search*", reason="read-only"),
         Rule(Verdict.ALLOW, "recall", reason="read-only"),
         Rule(Verdict.ALLOW, "assemble_context", reason="read-only"),
-        # Protected paths: never touch, even to read
-        Rule(Verdict.DENY, "*", path_glob="*/Documents/Job/*", reason="job data off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/Projects/job/*", reason="job data off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/.ssh/*", reason="secrets off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/.gnupg/*", reason="secrets off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/Vaults/*", reason="vault off-limits"),
         # Destructive: always confirm
         Rule(Verdict.CONFIRM, "run_backup", reason="system change"),
         Rule(Verdict.CONFIRM, "set_power_profile", reason="system change"),
@@ -111,17 +125,27 @@ def load_policy(path: Path | None = None) -> Policy:
         verdict = "confirm"
     protected = bool(data.get("protected_paths", True))
 
-    rules: list[Rule] = [
-        Rule(Verdict.ALLOW, "get_*", reason="read-only"),
-        Rule(Verdict.ALLOW, "list_*", reason="read-only"),
-        Rule(Verdict.ALLOW, "search*", reason="read-only"),
-        Rule(Verdict.ALLOW, "recall", reason="read-only"),
-        Rule(Verdict.ALLOW, "assemble_context", reason="read-only"),
-        Rule(Verdict.CONFIRM, "run_backup", reason="system change"),
-        Rule(Verdict.CONFIRM, "set_power_profile", reason="system change"),
-    ]
     if protected:
-        rules.extend(Rule(Verdict.DENY, "*", path_glob=g, reason=r) for g, r in PROTECTED_GLOBS)
+        rules: list[Rule] = [
+            *(Rule(Verdict.DENY, "*", path_glob=g, reason=r) for g, r in PROTECTED_GLOBS),
+            Rule(Verdict.ALLOW, "get_*", reason="read-only"),
+            Rule(Verdict.ALLOW, "list_*", reason="read-only"),
+            Rule(Verdict.ALLOW, "search*", reason="read-only"),
+            Rule(Verdict.ALLOW, "recall", reason="read-only"),
+            Rule(Verdict.ALLOW, "assemble_context", reason="read-only"),
+            Rule(Verdict.CONFIRM, "run_backup", reason="system change"),
+            Rule(Verdict.CONFIRM, "set_power_profile", reason="system change"),
+        ]
+    else:
+        rules: list[Rule] = [
+            Rule(Verdict.ALLOW, "get_*", reason="read-only"),
+            Rule(Verdict.ALLOW, "list_*", reason="read-only"),
+            Rule(Verdict.ALLOW, "search*", reason="read-only"),
+            Rule(Verdict.ALLOW, "recall", reason="read-only"),
+            Rule(Verdict.ALLOW, "assemble_context", reason="read-only"),
+            Rule(Verdict.CONFIRM, "run_backup", reason="system change"),
+            Rule(Verdict.CONFIRM, "set_power_profile", reason="system change"),
+        ]
     rules.append(Rule(Verdict(verdict), "*", reason=f"default from policy.json: {verdict}"))
     return Policy(rules=rules)
 
