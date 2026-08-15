@@ -134,3 +134,20 @@ def test_fs_diff(tmp_path):
     r = s.handle({"id":2,"method":"fs/diff",
                   "params":{"sessionId":sid,"path":"f.txt","text":"new\n"}})
     assert "---" in "\n".join(r[0]["result"]["diff"]) or len(r[0]["result"]["diff"]) > 0
+
+
+def test_terminal_exec_does_not_interpret_shell_metacharacters(tmp_path):
+    """F-03: shell metacharacters must not be interpreted (no shell=True)."""
+    from shesh_acp.server import ACPServer
+    s = ACPServer(root=tmp_path)
+    sid = s.handle(
+        {"id": 1, "method": "session/new", "params": {"cwd": str(tmp_path)}}
+    )[0]["result"]["sessionId"]
+    owned = tmp_path / "owned"
+    out = s.handle({"id": 2, "method": "terminal/exec",
+                    "params": {"sessionId": sid,
+                               "command": f"echo hi; touch {owned}"}})
+    # the `;` is a shell metacharacter -> refuses without confirm
+    assert out[0]["result"].get("needs_confirmation") is True
+    # and, critically, the file was never created even if executed
+    assert not owned.exists()

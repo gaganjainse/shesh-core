@@ -37,14 +37,26 @@ class Rule:
 class Policy:
     rules: list[Rule] = field(default_factory=list)
 
+    # Path-bearing arg keys a rule glob may match against. Broad coverage so a
+    # protected path passed under an unexpected key can't slip past a DENY.
+    PATH_KEYS = ("path", "file", "file_path", "source", "target", "dir", "directory")
+
+    @staticmethod
+    def _canon(path: str) -> str:
+        """realpath when the path exists (resolves symlinks); else as-given."""
+        try:
+            return os.path.realpath(path) if os.path.exists(path) else path
+        except OSError:
+            return path
+
     def decide(self, tool: str, args: dict | None = None) -> tuple[Verdict, str]:
         args = args or {}
         for r in self.rules:
             if not fnmatch.fnmatch(tool, r.tool):
                 continue
             if r.path_glob is not None:
-                target = str(args.get("path") or args.get("file") or "")
-                if not fnmatch.fnmatch(target, r.path_glob):
+                candidates = [self._canon(str(args[k])) for k in self.PATH_KEYS if k in args]
+                if not any(fnmatch.fnmatch(c, r.path_glob) for c in candidates):
                     continue
             return r.verdict, r.reason
         return Verdict.CONFIRM, "unknown action; default confirm"
@@ -53,18 +65,20 @@ class Policy:
 def default_policy() -> Policy:
     """The default safe policy for a personal laptop."""
     return Policy(rules=[
+        # Protected paths MUST precede the read-only ALLOWs: rules are
+        # first-match, so an ALLOW listed first would let get_*/list_* read
+        # job data, secrets and vaults despite the intended hard deny.
+        Rule(Verdict.DENY, "*", path_glob="*/Documents/Job/*", reason="job data off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/Projects/job/*", reason="job data off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/.ssh/*", reason="secrets off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/.gnupg/*", reason="secrets off-limits"),
+        Rule(Verdict.DENY, "*", path_glob="*/Vaults/*", reason="vault off-limits"),
         # Read-only / informational: allow silently
         Rule(Verdict.ALLOW, "get_*", reason="read-only"),
         Rule(Verdict.ALLOW, "list_*", reason="read-only"),
         Rule(Verdict.ALLOW, "search*", reason="read-only"),
         Rule(Verdict.ALLOW, "recall", reason="read-only"),
         Rule(Verdict.ALLOW, "assemble_context", reason="read-only"),
-        # Protected paths: never touch, even to read
-        Rule(Verdict.DENY, "*", path_glob="*/Documents/Job/*", reason="job data off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/Projects/job/*", reason="job data off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/.ssh/*", reason="secrets off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/.gnupg/*", reason="secrets off-limits"),
-        Rule(Verdict.DENY, "*", path_glob="*/Vaults/*", reason="vault off-limits"),
         # Destructive: always confirm
         Rule(Verdict.CONFIRM, "run_backup", reason="system change"),
         Rule(Verdict.CONFIRM, "set_power_profile", reason="system change"),
@@ -111,7 +125,12 @@ def load_policy(path: Path | None = None) -> Policy:
         verdict = "confirm"
     protected = bool(data.get("protected_paths", True))
 
-    rules: list[Rule] = [
+    # Protected-path DENYs precede read-only ALLOWs (first-match: a get_* ALLOW
+    # listed first would defeat the hard deny for job/secrets/vault paths).
+    rules: list[Rule] = []
+    if protected:
+        rules.extend(Rule(Verdict.DENY, "*", path_glob=g, reason=r) for g, r in PROTECTED_GLOBS)
+    rules.extend([
         Rule(Verdict.ALLOW, "get_*", reason="read-only"),
         Rule(Verdict.ALLOW, "list_*", reason="read-only"),
         Rule(Verdict.ALLOW, "search*", reason="read-only"),
@@ -119,9 +138,7 @@ def load_policy(path: Path | None = None) -> Policy:
         Rule(Verdict.ALLOW, "assemble_context", reason="read-only"),
         Rule(Verdict.CONFIRM, "run_backup", reason="system change"),
         Rule(Verdict.CONFIRM, "set_power_profile", reason="system change"),
-    ]
-    if protected:
-        rules.extend(Rule(Verdict.DENY, "*", path_glob=g, reason=r) for g, r in PROTECTED_GLOBS)
+    ])
     rules.append(Rule(Verdict(verdict), "*", reason=f"default from policy.json: {verdict}"))
     return Policy(rules=rules)
 

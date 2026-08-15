@@ -6,6 +6,7 @@ makes it fully testable offline.
 """
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -168,7 +169,14 @@ class ACPServer:
     # ── terminal ──────────────────────────────────────────────────────
     def terminal_exec(self, params: dict) -> dict:
         """Run a command in the session cwd. Read-only by default unless
-        'confirm' is true (editor surfaces a permission request)."""
+        'confirm' is true (editor surfaces a permission request).
+
+        Executes via shell=False with shlex parsing: the command is split into
+        an argv list, so shell metacharacters (;, |, &&, >, $()) are NOT
+        interpreted — closing the shell-injection hole in the previous
+        shell=True implementation (F-03).
+        """
+        import shlex
         import subprocess
         sid = params["sessionId"]
         sess = self.sessions[sid]
@@ -176,23 +184,32 @@ class ACPServer:
         if not cmd:
             return {"ok": False, "error": "no command"}
         confirm = bool(params.get("confirm", False))
-        # Dangerous commands require explicit confirmation.
-        dangerous = ("rm ", "sudo", "mkfs", "dd ", "shutdown", "reboot",
-                     ">", "mv ", "chmod", "chown")
-        if any(tok in cmd for tok in dangerous) and not confirm:
+        try:
+            argv = shlex.split(cmd)
+        except ValueError as e:
+            return {"ok": False, "error": f"unbalanced quoting: {e}"}
+        if not argv:
+            return {"ok": False, "error": "empty command"}
+        # Dangerous commands require explicit confirmation: both shell-style
+        # metacharacters (no longer interpreted, but refused early for clarity)
+        # and a denylist of destructive program basenames.
+        shell_meta = (";", "|", "&&", "||", "$(", "`", ">", "<", "*", "~")
+        dangerous = {"rm", "sudo", "mkfs", "dd", "shutdown", "reboot",
+                     "mv", "chmod", "chown", "kill"}
+        if (any(tok in cmd for tok in shell_meta)
+                or os.path.basename(argv[0]) in dangerous) and not confirm:
             return {"ok": False, "needs_confirmation": True,
                     "reason": "command is potentially destructive"}
         try:
-            # nosec B602 - shell=True is the point of a terminal tool; the
-            # command is gated by the dangerous-token denylist above AND the
-            # confirm-by-default policy (shesh-audit) before this executes.
             p = subprocess.run(
-                cmd, shell=True, cwd=sess.cwd, capture_output=True,
+                argv, cwd=sess.cwd, capture_output=True,
                 text=True, timeout=params.get("timeout", 30))
             return {"ok": p.returncode == 0, "exit_code": p.returncode,
                     "stdout": p.stdout[-4000:], "stderr": p.stderr[-2000:]}
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": "timeout"}
+        except OSError as e:
+            return {"ok": False, "error": f"exec failed: {e}"}
 
     def fs_diff(self, params: dict) -> dict:
         """Return a simple unified-style diff for a file vs expected text."""
