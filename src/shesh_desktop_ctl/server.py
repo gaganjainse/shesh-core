@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from shesh_audit.mcp_guard import GuardedMCP as _MCP
 
+from . import automation as auto
 from . import devices as d
 
 mcp = _MCP("shesh-desktop-ctl")
@@ -155,6 +156,26 @@ def service_restart(unit: str, user: bool = True, confirm: bool = False) -> dict
 def notify(summary: str, body: str = "", urgency: str = "normal") -> dict:
     """Send a desktop notification."""
     return d.notify(summary, body, urgency)
+
+
+# ── Desktop automation (adopted upstream, ADR-0020) ─────────────────────────
+
+@mcp.tool()
+def automation_doctor() -> dict:
+    """Report whether desktop automation is usable on this machine."""
+    return auto.doctor()
+
+
+@mcp.tool()
+def automation_call(tool: str, arguments: dict | None = None,
+                    confirm: bool = False) -> dict:
+    """Invoke a computer-use-linux tool through the policy guard.
+
+    Reading the screen is permitted freely. Anything that clicks, types, or
+    moves a window requires confirm=True: an agent driving the pointer can do
+    anything the operator can, and a misread instruction is not recoverable.
+    """
+    return auto.call(tool, arguments, confirm=confirm)
 
 
 def main() -> None:
