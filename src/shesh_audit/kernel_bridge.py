@@ -59,13 +59,14 @@ class KernelBridge:
     def _tail_sequence(self) -> int:
         if not self.path.exists():
             return 0
-        seq = 0
-        for line in self.path.read_text(encoding="utf-8").splitlines():
-            try:
-                seq = max(seq, int(json.loads(line).get("sequence", 0)))
-            except (json.JSONDecodeError, ValueError, TypeError):
-                continue
-        return seq
+        try:
+            last = self.path.read_text(encoding="utf-8").splitlines()[-1]
+        except IndexError:
+            return 0
+        try:
+            return int(json.loads(last).get("sequence", 0))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return 0
 
     def emit(self, kind: KernelEventKind, payload: dict | None = None) -> KernelEvent:
         self._seq += 1

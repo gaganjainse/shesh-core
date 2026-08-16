@@ -13,8 +13,17 @@ from shesh_audit.mcp_guard import GuardedMCP as FastMCP
 
 mcp = FastMCP("shesh-brain")
 
-_bridge = KernelBridge()
-_guard = Guard(bridge=_bridge)
+# Lazily build the kernel bridge + guard so importing this module is cheap and
+# does not fail (or read the whole audit log) when the kernel event store is not
+# yet available. Constructed once, on first tool call.
+_guard: Guard | None = None
+
+
+def guard() -> Guard:
+    global _guard
+    if _guard is None:
+        _guard = Guard(bridge=KernelBridge())
+    return _guard
 
 
 @mcp.tool()
@@ -26,7 +35,7 @@ def route_tool_call(actor: str, tool: str, args: dict | None = None) -> dict:
     (or after human confirmation when requires_confirmation=True).
     """
     args = args or {}
-    decision = _guard.check(tool, args, actor=actor)
+    decision = guard().check(tool, args, actor=actor)
     return {
         "allowed": decision.allowed,
         "requires_confirmation": decision.requires_confirmation,
@@ -41,7 +50,7 @@ def get_policy() -> dict:
     try:
         rules = [
             {"tool": r.tool, "verdict": r.verdict.value, "reason": r.reason}
-            for r in _guard.policy.rules
+            for r in guard().policy.rules
         ]
         return {"guard": True, "rule_count": len(rules), "rules": rules}
     except Exception as e:  # noqa: BLE001 — MCP tool boundary returns error dicts
@@ -58,12 +67,12 @@ def record_confirmation(actor: str, tool: str, approved: bool, reason: str = "")
     confirmation that leaves no trail would defeat the audit design.
     """
     kind = KernelEventKind.CONFIRMATION_GRANTED if approved else KernelEventKind.CONFIRMATION_DENIED
-    _guard.audit.record(
+    guard().audit.record(
         actor, tool,
         "confirmation-granted" if approved else "confirmation-denied",
         args={}, result=reason,
     )
-    _bridge.emit(kind, {"actor": actor, "tool": tool, "reason": reason})
+    guard().bridge.emit(kind, {"actor": actor, "tool": tool, "reason": reason})
     return {
         "ok": True,
         "verdict": kind.name.lower().replace("_", "-"),
@@ -82,7 +91,7 @@ def audit_tail(limit: int = 20) -> dict:
     shesh-audit's own verify() — brain only serves the read view here.
     """
     limit = max(1, min(int(limit), 500))
-    events = _guard.audit.recent(limit)
+    events = guard().audit.recent(limit)
     return {"ok": True, "count": len(events), "events": events}
 
 
