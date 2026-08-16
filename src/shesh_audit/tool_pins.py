@@ -10,7 +10,9 @@ Research background (see docs/THREAT_MODEL.md):
 Defense implemented here (fails LOUD, never silent):
 1. Every GuardedMCP tool registration hashes (name, description, signature)
    into a per-server pin file under the shesh state dir.
-2. First boot LEARNS pins loudly on stderr. A pin file is then authoritative.
+2. First boot learns the complete set of tools registered during that process
+   and says so on stderr. Once the server enters serving state, the pin set is
+   authoritative.
 3. Any later registration whose hash differs from the pin raises ToolPinDrift.
    A newly introduced tool name also raises ToolPinDrift until the operator
    explicitly re-pins the server.
@@ -34,6 +36,11 @@ from pathlib import Path
 
 STATE_DIR = Path.home() / ".local" / "state" / "shesh" / "audit"
 PIN_DIR = STATE_DIR / "tool-pins"
+
+# Servers whose pin file did not exist when their first tool registered. Their
+# remaining registrations during the same process are part of the initial
+# TOFU set. GuardedMCP clears this set immediately before serving begins.
+_BOOTSTRAP_SERVERS: set[str] = set()
 
 OVERRIDE_PHRASES = re.compile(
     r"ignore (all |any |the )?(previous|prior|above) instructions"
@@ -121,13 +128,15 @@ def verify_tool(server: str, name: str, description: str, fn: object | None = No
             signature = ""
 
     fp = tool_fingerprint(name, description, signature)
+    path = pin_path(server)
     pins = load_pins(server)
 
-    if not pins:
-        pins = {name: fp}
+    if not path.exists():
+        _BOOTSTRAP_SERVERS.add(server)
+        pins[name] = fp
         learn_pins(server, pins)
         print(
-            f"[tool-pins] {server}: learned first pin for {name} "
+            f"[tool-pins] {server}: learning initial tool set; first pin is {name} "
             f"(trust-on-first-use; re-pin via python -m shesh_audit.tool_pins --repin {server})",
             file=sys.stderr,
         )
@@ -135,6 +144,10 @@ def verify_tool(server: str, name: str, description: str, fn: object | None = No
 
     existing = pins.get(name)
     if existing is None:
+        if server in _BOOTSTRAP_SERVERS:
+            pins[name] = fp
+            learn_pins(server, pins)
+            return
         raise ToolPinDrift(
             f"{server}/{name}: tool was not present in the pin set. "
             f"Explicit re-pin required: python -m shesh_audit.tool_pins --repin {server}"
@@ -145,6 +158,11 @@ def verify_tool(server: str, name: str, description: str, fn: object | None = No
             f"{server}/{name}: tool definition changed since it was pinned (rug-pull defense). "
             f"If this change is intended: python -m shesh_audit.tool_pins --repin {server}"
         )
+
+
+def finish_bootstrap(server: str) -> None:
+    """End first-boot learning before a server starts serving requests."""
+    _BOOTSTRAP_SERVERS.discard(server)
 
 
 def main(argv: list[str] | None = None) -> int:
