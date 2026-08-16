@@ -10,18 +10,19 @@ Research background (see docs/THREAT_MODEL.md):
 Defense implemented here (fails LOUD, never silent):
 1. Every GuardedMCP tool registration hashes (name, description, signature)
    into a per-server pin file under the shesh state dir.
-2. First boot of a server LEARNS the pins (trust-on-first-use) and says so on
-   stderr, listing each tool learned — invisible-by-default learning is how
-   rug pulls stay invisible.
-3. Any later registration whose hash differs from the pin raises
-   ToolPinDrift — the server refuses to start serving a mutated tool.
-   Intended changes are blessed explicitly:
-
-       python -m shesh_audit.tool_pins --repin <server-name>
-
+2. First boot learns the complete set of tools registered during that process
+   and says so on stderr. Once the server enters serving state, the pin set is
+   authoritative.
+3. Any later registration whose hash differs from the pin raises ToolPinDrift.
+   A newly introduced tool name also raises ToolPinDrift until the operator
+   explicitly re-pins the server.
 4. Descriptions are additionally scanned for poisoning markers (zero-width
    and bidi unicode, embedded HTML comments, instruction-override phrases,
    oversized payloads). Any hit is drift-fatal at registration time.
+
+Intended changes are blessed explicitly:
+
+    python -m shesh_audit.tool_pins --repin <server-name>
 """
 from __future__ import annotations
 
@@ -36,6 +37,11 @@ from pathlib import Path
 STATE_DIR = Path.home() / ".local" / "state" / "shesh" / "audit"
 PIN_DIR = STATE_DIR / "tool-pins"
 
+# Servers whose pin file did not exist when their first tool registered. Their
+# remaining registrations during the same process are part of the initial
+# TOFU set. GuardedMCP clears this set immediately before serving begins.
+_BOOTSTRAP_SERVERS: set[str] = set()
+
 OVERRIDE_PHRASES = re.compile(
     r"ignore (all |any |the )?(previous|prior|above) instructions"
     r"|disregard (all |any )?(previous|prior) instructions"
@@ -43,7 +49,7 @@ OVERRIDE_PHRASES = re.compile(
     r"|<\s*system\s*>|<\s*/?\s*instructions?\s*>",
     re.IGNORECASE,
 )
-MAX_DESCRIPTION = 4000  # chars — over-long tool descriptions are an injection surface
+MAX_DESCRIPTION = 4000
 
 
 class ToolPinDrift(RuntimeError):
@@ -64,7 +70,7 @@ def scan_description(description: str) -> list[str]:
         if cat in ("Cf", "Cc") and ch not in "\n\t":
             findings.append(
                 f"format/control char U+{ord(ch):04X} {unicodedata.name(ch, '?')} in description")
-            break  # one such finding is enough to refuse; report the first
+            break
     if "<!--" in description or "-->" in description:
         findings.append("HTML comment embedded in description (hidden instruction channel)")
     m = OVERRIDE_PHRASES.search(description)
@@ -73,18 +79,16 @@ def scan_description(description: str) -> list[str]:
     return findings
 
 
-def _malformed_msg(path: Path) -> str:
-    return f"pin file {path} malformed; refusing to guess — inspect it"
-
-
 def pin_path(server: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", server)
     return PIN_DIR / f"{safe}.json"
 
 
 def tool_fingerprint(name: str, description: str, signature: str) -> str:
-    blob = json.dumps({"name": name, "description": description, "signature": signature},
-                      sort_keys=True).encode()
+    blob = json.dumps(
+        {"name": name, "description": description, "signature": signature},
+        sort_keys=True,
+    ).encode()
     return hashlib.sha256(blob).hexdigest()
 
 
@@ -95,10 +99,11 @@ def load_pins(server: str) -> dict[str, str]:
     try:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as e:
-        msg = f"pin file {path} unreadable ({e}); refusing to guess — inspect it"
-        raise ToolPinDrift(msg) from e
+        raise ToolPinDrift(
+            f"pin file {path} unreadable ({e}); refusing to guess — inspect it"
+        ) from e
     if not isinstance(data, dict) or not all(isinstance(v, str) for v in data.values()):
-        raise ToolPinDrift(_malformed_msg(path))
+        raise ToolPinDrift(f"pin file {path} malformed; refusing to guess — inspect it")
     return data
 
 
@@ -111,33 +116,53 @@ def verify_tool(server: str, name: str, description: str, fn: object | None = No
     """Enforce the pin for one tool registration. Raises on drift/poisoning."""
     markers = scan_description(description)
     if markers:
-        msg = f"{server}/{name}: description failed the poisoning scan: {'; '.join(markers)}"
-        raise ToolPoisoningMarker(msg)
+        raise ToolPoisoningMarker(
+            f"{server}/{name}: description failed the poisoning scan: {'; '.join(markers)}"
+        )
+
     signature = ""
     if fn is not None:
         try:
             signature = str(inspect.signature(fn))
         except (TypeError, ValueError):
-            signature = ""  # builtins without introspectable signatures hash name+description only
+            signature = ""
+
     fp = tool_fingerprint(name, description, signature)
+    path = pin_path(server)
     pins = load_pins(server)
-    if not pins:
-        learned = {name: fp}
-        learn_pins(server, learned)
-        print(f"[tool-pins] {server}: learned first pin for {name} "
-              f"(trust-on-first-use; re-pin via python -m shesh_audit.tool_pins --repin {server})",
-              file=sys.stderr)
-        return
-    existing = pins.get(name)
-    if existing is None:
+
+    if not path.exists():
+        _BOOTSTRAP_SERVERS.add(server)
         pins[name] = fp
         learn_pins(server, pins)
-        print(f"[tool-pins] {server}: learned new tool {name} (added to pins)", file=sys.stderr)
+        print(
+            f"[tool-pins] {server}: learning initial tool set; first pin is {name} "
+            f"(trust-on-first-use; re-pin via python -m shesh_audit.tool_pins --repin {server})",
+            file=sys.stderr,
+        )
         return
+
+    existing = pins.get(name)
+    if existing is None:
+        if server in _BOOTSTRAP_SERVERS:
+            pins[name] = fp
+            learn_pins(server, pins)
+            return
+        raise ToolPinDrift(
+            f"{server}/{name}: tool was not present in the pin set. "
+            f"Explicit re-pin required: python -m shesh_audit.tool_pins --repin {server}"
+        )
+
     if existing != fp:
-        msg = (f"{server}/{name}: tool definition changed since it was pinned (rug-pull defense). "
-               f"If this change is intended: python -m shesh_audit.tool_pins --repin {server}")
-        raise ToolPinDrift(msg)
+        raise ToolPinDrift(
+            f"{server}/{name}: tool definition changed since it was pinned (rug-pull defense). "
+            f"If this change is intended: python -m shesh_audit.tool_pins --repin {server}"
+        )
+
+
+def finish_bootstrap(server: str) -> None:
+    """End first-boot learning before a server starts serving requests."""
+    _BOOTSTRAP_SERVERS.discard(server)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -146,8 +171,10 @@ def main(argv: list[str] | None = None) -> int:
         path = pin_path(argv[1])
         if path.exists():
             path.unlink()
-        print(f"[tool-pins] {argv[1]}: pins cleared;"
-              " next server boot relearns them", file=sys.stderr)
+        print(
+            f"[tool-pins] {argv[1]}: pins cleared; next server boot relearns them",
+            file=sys.stderr,
+        )
         return 0
     print(__doc__.splitlines()[0], file=sys.stderr)
     print("usage: python -m shesh_audit.tool_pins --repin <server-name>", file=sys.stderr)
