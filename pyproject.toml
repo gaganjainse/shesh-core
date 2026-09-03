@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Gagan Jain" }]
-dependencies = ["fastmcp>=3.4.7,<4"]
+dependencies = ["fastmcp>=3.4.7,<5"]
 
 [project.optional-dependencies]
 llm = ["httpx>=0.27"]   # shesh-files classifier LLM support
